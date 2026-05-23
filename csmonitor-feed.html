@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS Monitor – World News</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #fff;
+      color: #1a1a1a;
+      padding: 16px 20px 24px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      border-bottom: 2px solid #005a8b;
+      padding-bottom: 8px;
+    }
+
+    header h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #005a8b;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    #status {
+      font-size: 11px;
+      color: #888;
+    }
+
+    #feed {
+      list-style: none;
+    }
+
+    #feed li {
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    #feed li:last-child {
+      border-bottom: none;
+    }
+
+    #feed a {
+      color: #1a1a1a;
+      text-decoration: none;
+      font-size: 13.5px;
+      line-height: 1.45;
+    }
+
+    #feed a:hover {
+      color: #005a8b;
+      text-decoration: underline;
+    }
+
+    .pub-date {
+      display: block;
+      font-size: 11px;
+      color: #aaa;
+      margin-top: 2px;
+    }
+
+    #error {
+      display: none;
+      color: #c0392b;
+      font-size: 13px;
+      padding: 12px 0;
+    }
+
+    .loading {
+      color: #aaa;
+      font-size: 13px;
+      padding: 12px 0;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>CS Monitor · World</h1>
+  <span id="status">Loading…</span>
+</header>
+
+<p id="error">Could not load feed. Will retry in 5 minutes.</p>
+<ul id="feed"><li class="loading">Fetching headlines…</li></ul>
+
+<script>
+  const RSS_URL   = "http://rss.csmonitor.com/feeds/world";
+  const PROXY     = "https://corsproxy.io/?" + encodeURIComponent(RSS_URL);
+  const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+
+  function formatDate(dateStr) {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d)) return "";
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function loadFeed() {
+    const feedEl  = document.getElementById("feed");
+    const statusEl = document.getElementById("status");
+    const errorEl  = document.getElementById("error");
+
+    try {
+      const res  = await fetch(PROXY);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const xml  = new DOMParser().parseFromString(text, "text/xml");
+
+      const items = Array.from(xml.querySelectorAll("item")).slice(0, 20);
+      if (!items.length) throw new Error("No items found");
+
+      errorEl.style.display = "none";
+      feedEl.innerHTML = items.map(item => {
+        const title   = item.querySelector("title")?.textContent?.trim() || "(No title)";
+        const link    = item.querySelector("link")?.textContent?.trim() || "#";
+        const pubDate = item.querySelector("pubDate")?.textContent?.trim() || "";
+        return `
+          <li>
+            <a href="${link}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)}</a>
+            <span class="pub-date">${formatDate(pubDate)}</span>
+          </li>`;
+      }).join("");
+
+      const now = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+      statusEl.textContent = `Updated ${now}`;
+    } catch (err) {
+      errorEl.style.display = "block";
+      statusEl.textContent  = "Error – retrying…";
+      console.error("Feed error:", err);
+    }
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  loadFeed();
+  setInterval(loadFeed, REFRESH_MS);
+</script>
+
+</body>
+</html>
