@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monitoring the Situation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink: #1a1a1a;
+      --muted: #888;
+      --faint: #aaa;
+      --rule: #e0e0e0;
+      --accent: #1a3a5c;
+      --accent-light: #2d6a9f;
+      --bg: #f7f5f0;
+      --card-bg: #fff;
+      --new-dot: #c0392b;
+      --font-serif: Georgia, "Times New Roman", serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── Masthead ── */
+    #masthead {
+      background: var(--accent);
+      color: #fff;
+      padding: 14px 24px 10px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    #masthead h1 {
+      font-family: var(--font-serif);
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      line-height: 1.1;
+    }
+
+    #masthead h1 span {
+      display: block;
+      font-size: 11px;
+      font-family: var(--font-sans);
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: 0.7;
+      margin-bottom: 2px;
+    }
+
+    #global-status {
+      font-size: 11px;
+      opacity: 0.65;
+      white-space: nowrap;
+    }
+
+    #refresh-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.4);
+      color: #fff;
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: background 0.15s;
+    }
+    #refresh-btn:hover { background: rgba(255,255,255,0.12); }
+
+    /* ── Grid ── */
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 0;
+      padding: 0;
+    }
+
+    /* ── Feed column ── */
+    .feed-col {
+      background: var(--card-bg);
+      border-right: 1px solid var(--rule);
+      display: flex;
+      flex-direction: column;
+      min-height: 60vh;
+    }
+
+    .feed-col:last-child { border-right: none; }
+
+    .feed-header {
+      padding: 10px 14px 8px;
+      border-bottom: 3px solid var(--accent);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      background: var(--card-bg);
+      z-index: 10;
+    }
+
+    .feed-name {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+    }
+
+    .feed-status {
+      font-size: 10px;
+      color: var(--faint);
+      white-space: nowrap;
+    }
+
+    .feed-items {
+      list-style: none;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .feed-items li {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--rule);
+      position: relative;
+    }
+
+    .feed-items li:last-child { border-bottom: none; }
+
+    .feed-items li.is-new::before {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 14px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--new-dot);
+    }
+
+    .item-link {
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 13px;
+      line-height: 1.45;
+      display: block;
+    }
+
+    .item-link:hover {
+      color: var(--accent-light);
+      text-decoration: underline;
+    }
+
+    .item-link.seen { color: var(--muted); }
+
+    .item-meta {
+      font-size: 10.5px;
+      color: var(--faint);
+      margin-top: 3px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .item-source-tag {
+      background: var(--bg);
+      border-radius: 2px;
+      padding: 0 4px;
+      font-size: 9.5px;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+
+    /* ── Loading / error states ── */
+    .feed-msg {
+      padding: 14px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .feed-msg.error { color: #c0392b; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 14px;
+      font-size: 11px;
+      color: var(--faint);
+      border-top: 1px solid var(--rule);
+    }
+
+    @media (max-width: 640px) {
+      #grid { grid-template-columns: 1fr; }
+      .feed-col { border-right: none; border-bottom: 2px solid var(--accent); }
+    }
+  </style>
+</head>
+<body>
+
+<header id="masthead">
+  <h1><span>Monitoring</span> The Situation</h1>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span id="global-status">Initializing…</span>
+    <button id="refresh-btn">↻ Refresh</button>
+  </div>
+</header>
+
+<main id="grid"></main>
+
+<footer>Auto-refreshes every 10 minutes &nbsp;·&nbsp; <span id="last-refresh">—</span></footer>
+
+<script>
+// ── Feed definitions ──────────────────────────────────────────────────────────
+const FEEDS = [
+  {
+    id: "ap",
+    name: "AP Top News",
+    url: "https://feeds.apnews.com/rss/apf-topnews",
+    type: "rss",
+    maxItems: 20,
+  },
+  {
+    id: "reddit-breaking",
+    name: "r/breakingnews",
+    url: "https://www.reddit.com/r/breakingnews/.rss",
+    type: "atom",
+    maxItems: 20,
+  },
+  {
+    id: "csmonitor",
+    name: "CS Monitor · World",
+    url: "http://rss.csmonitor.com/feeds/world",
+    type: "rss",
+    maxItems: 20,
+  },
+];
+
+const PROXY = url => "https://corsproxy.io/?" + encodeURIComponent(url);
+const REFRESH_MS = 10 * 60 * 1000;
+
+// ── Seen-items persistence ─────────────────────────────────────────────────────
+const SEEN_KEY = "mts_seen_v1";
+let seen = new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"));
+function markSeen(id) {
+  seen.add(id);
+  // keep set bounded
+  if (seen.size > 2000) {
+    const arr = [...seen];
+    seen = new Set(arr.slice(arr.length - 1500));
+  }
+  localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function relTime(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d)) return "";
+  const diff = (Date.now() - d) / 1000;
+  if (diff < 60)   return "just now";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// ── Parse XML items for both RSS and Atom ─────────────────────────────────────
+function parseItems(xml, type, maxItems) {
+  if (type === "atom") {
+    return Array.from(xml.querySelectorAll("entry")).slice(0, maxItems).map(e => ({
+      title: e.querySelector("title")?.textContent?.trim() || "(No title)",
+      link:  e.querySelector("link[rel='alternate'],link")?.getAttribute("href")
+             || e.querySelector("link")?.textContent?.trim() || "#",
+      date:  e.querySelector("updated,published")?.textContent?.trim() || "",
+      id:    e.querySelector("id")?.textContent?.trim() || "",
+    }));
+  }
+  // RSS
+  return Array.from(xml.querySelectorAll("item")).slice(0, maxItems).map(item => {
+    const linkNode = item.querySelector("link");
+    // <link> in RSS is sometimes a text node preceded by whitespace
+    const link = linkNode?.textContent?.trim()
+      || item.querySelector("guid")?.textContent?.trim() || "#";
+    return {
+      title: item.querySelector("title")?.textContent?.trim() || "(No title)",
+      link,
+      date:  item.querySelector("pubDate")?.textContent?.trim() || "",
+      id:    item.querySelector("guid")?.textContent?.trim() || link,
+    };
+  });
+}
+
+// ── Build column DOM ──────────────────────────────────────────────────────────
+function buildColumn(feed) {
+  const col = document.createElement("section");
+  col.className = "feed-col";
+  col.id = `col-${feed.id}`;
+  col.innerHTML = `
+    <div class="feed-header">
+      <span class="feed-name">${esc(feed.name)}</span>
+      <span class="feed-status" id="status-${feed.id}">Loading…</span>
+    </div>
+    <ul class="feed-items" id="items-${feed.id}">
+      <li class="feed-msg">Fetching…</li>
+    </ul>`;
+  return col;
+}
+
+// ── Render items into a column ────────────────────────────────────────────────
+function renderItems(feed, items) {
+  const ul = document.getElementById(`items-${feed.id}`);
+  if (!items.length) {
+    ul.innerHTML = `<li class="feed-msg">No items found.</li>`;
+    return;
+  }
+  ul.innerHTML = items.map(item => {
+    const isNew = !seen.has(item.id);
+    const seenClass = seen.has(item.id) ? " seen" : "";
+    return `
+      <li class="${isNew ? "is-new" : ""}" data-id="${esc(item.id)}">
+        <a class="item-link${seenClass}" href="${esc(item.link)}"
+           target="_blank" rel="noopener noreferrer">${esc(item.title)}</a>
+        <div class="item-meta">
+          <span>${relTime(item.date)}</span>
+        </div>
+      </li>`;
+  }).join("");
+
+  // Mark as seen when link is clicked
+  ul.querySelectorAll("li[data-id]").forEach(li => {
+    li.querySelector("a")?.addEventListener("click", () => {
+      markSeen(li.dataset.id);
+      li.classList.remove("is-new");
+      li.querySelector("a")?.classList.add("seen");
+    });
+  });
+}
+
+// ── Load a single feed ────────────────────────────────────────────────────────
+async function loadFeed(feed) {
+  const statusEl = document.getElementById(`status-${feed.id}`);
+  const itemsEl  = document.getElementById(`items-${feed.id}`);
+  try {
+    const res = await fetch(PROXY(feed.url));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    const xml  = new DOMParser().parseFromString(text, "text/xml");
+    const parseErr = xml.querySelector("parsererror");
+    if (parseErr) throw new Error("XML parse error");
+
+    const items = parseItems(xml, feed.type, feed.maxItems);
+    renderItems(feed, items);
+
+    const now = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    statusEl.textContent = `${now}`;
+    statusEl.style.color = "";
+  } catch (err) {
+    itemsEl.innerHTML = `<li class="feed-msg error">Failed to load — will retry.</li>`;
+    statusEl.textContent = "Error";
+    statusEl.style.color = "#c0392b";
+    console.error(`[${feed.id}]`, err);
+  }
+}
+
+// ── Load all feeds ────────────────────────────────────────────────────────────
+async function loadAll() {
+  const statusEl = document.getElementById("global-status");
+  statusEl.textContent = "Refreshing…";
+  await Promise.allSettled(FEEDS.map(loadFeed));
+  const now = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  statusEl.textContent = `Last updated ${now}`;
+  document.getElementById("last-refresh").textContent = now;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+const grid = document.getElementById("grid");
+FEEDS.forEach(feed => grid.appendChild(buildColumn(feed)));
+
+document.getElementById("refresh-btn").addEventListener("click", loadAll);
+
+loadAll();
+setInterval(loadAll, REFRESH_MS);
+</script>
+
+</body>
+</html>
